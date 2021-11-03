@@ -2,6 +2,35 @@
 # RESOURCES
 #############################################################################
 
+# resource "azurerm_storage_account" "tfstate" {
+#   name                     = "tfstate"
+#   resource_group_name      = azurerm_resource_group.resource_group.name
+#   location                 = azurerm_resource_group.resource_group.location
+#   account_tier             = "Standard"
+#   account_replication_type = "LRS"
+#   allow_blob_public_access = true
+
+#   tags = {
+#     environment = "staging"
+#   }
+# }
+
+# resource "azurerm_storage_container" "container" {
+#   name                  = "container"
+#   storage_account_name  = azurerm_storage_account.tfstate.name
+#   container_access_type = "blob"
+# }
+
+data "azurerm_key_vault" "chen-keyvault" {
+  name                = "chen-keyvault"
+  resource_group_name = "chen-azuretask-rg"
+}
+
+data "azurerm_key_vault_secret" "secret" {
+  name         = "sshKey"
+  key_vault_id = data.azurerm_key_vault.chen-keyvault.id
+}
+
 locals{
   env_name = (terraform.workspace == "stage") ? "stage" : "prod"
 }
@@ -66,7 +95,8 @@ resource "azurerm_virtual_machine" "vm" {
     disable_password_authentication = true
     ssh_keys {
       path     = "/home/chen/.ssh/authorized_keys"
-      key_data = file("~/.ssh/id_rsa.pub")
+      key_data = data.azurerm_key_vault_secret.secret.value
+      # key_data = file("~/.ssh/id_rsa.pub")
   }
 }
 os_profile {
@@ -136,6 +166,8 @@ resource "azurerm_lb_backend_address_pool" "chen_BackEnd" {
 resource "azurerm_network_interface_backend_address_pool_association" "association" {
   count = var.env == "prod" ? 2 : 1
   network_interface_id    = azurerm_network_interface.vnet_main[count.index].id
+  # ip_configuration_name   = element(azurerm_network_interface.vnet_main[count.index].ip_configuration,0)
+  # ip_configuration_name   = azurerm_network_interface.vnet_main[count.index].ip_configuration.name
   ip_configuration_name = "internal"
   backend_address_pool_id = azurerm_lb_backend_address_pool.chen_BackEnd.id
 }
@@ -152,7 +184,9 @@ output "virtual_network_id" {
 resource "azurerm_virtual_network_peering" "peering" {
   name                         = "${local.env_name}_peering"
   resource_group_name          = azurerm_resource_group.resource_group.name
+  #module.vnet-main.resource_group_name
   virtual_network_name         = module.vnet-main.vnet_name
+  # module.vnet-main.vnet_name
   remote_virtual_network_id    = data.azurerm_virtual_network.chen_bastion.id
   allow_virtual_network_access = true
   allow_forwarded_traffic      = true
@@ -174,29 +208,31 @@ resource "azurerm_virtual_network_peering" "peering2" {
 }
 
 
-data "azurerm_client_config" "current" {}
+# data "azurerm_client_config" "current" {}
 
-resource "azurerm_key_vault" "chen-keyvault" {
-  name                = "chen-keyvault"
-  location            = azurerm_resource_group.resource_group.location
-  resource_group_name = "chen-azuretask-rg"
-  tenant_id           = data.azurerm_client_config.current.tenant_id
-  sku_name            = "premium"
-}
+# data "azurerm_key_vault" "chen-keyvault" {
+#   name                = "chen-keyvault"
+#   location            = azurerm_resource_group.resource_group.location
+#   resource_group_name = "chen-azuretask-rg"
+#   tenant_id           = data.azurerm_client_config.current.tenant_id
+#   sku_name            = "premium"
+# }
 
-resource "azurerm_key_vault_access_policy" "access" {
-  key_vault_id = azurerm_key_vault.chen-keyvault.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = "08d0cb9f-26ef-48e1-b1d4-668ce7469220"
+# resource "azurerm_key_vault_access_policy" "access" {
+#   key_vault_id = azurerm_key_vault.chen-keyvault.id
+#   tenant_id    = data.azurerm_client_config.current.tenant_id
+#   object_id    = "08d0cb9f-26ef-48e1-b1d4-668ce7469220"
 
-  key_permissions = [
-    "Get",
-  ]
+#   key_permissions = [
+#     "Get",
+#   ]
 
-  secret_permissions = [
-    "Get",
-  ]
-}
+#   secret_permissions = [
+#     "Get",
+#   ]
+# }
+
+
 
 # resource "azurerm_key_vault_access_policy" "accesspo" {
 #   key_vault_id = azurerm_key_vault.example.id

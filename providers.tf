@@ -11,7 +11,7 @@ terraform {
   }
 
   backend "azurerm" {
-    resource_group_name  = "chen_tf_task"
+    resource_group_name  = "chen_tf"
     storage_account_name = "chenmstorage"  
     container_name       = "chenmcontainer"
     key                  = "terraform.tfstate"
